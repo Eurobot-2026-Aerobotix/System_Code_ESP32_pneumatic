@@ -46,36 +46,74 @@ void setup() {
   digitalWrite(back_pump_pin, LOW);
 
   // Wait for micro-ROS agent
-  delay(2000);
+  Serial.println("Waiting for micro-ROS agent...");
+  delay(3000);
 
-  // Initialize micro-ROS
+  // Initialize micro-ROS with error checking and retry
   allocator = rcl_get_default_allocator();
-
-  // Create init_options
-  rclc_support_init(&support, 0, NULL, &allocator);
+  
+  // Retry connection up to 10 times
+  rcl_ret_t ret;
+  int retry_count = 0;
+  do {
+      ret = rclc_support_init(&support, 0, NULL, &allocator);
+      if (ret != RCL_RET_OK) {
+          Serial.println("Failed to connect to micro-ROS agent, retrying...");
+          delay(1000);
+          retry_count++;
+      }
+  } while (ret != RCL_RET_OK && retry_count < 10);
+  
+  if (ret != RCL_RET_OK) {
+      Serial.println("ERROR: Failed to initialize micro-ROS!");
+      while(1) { delay(100); }
+  }
+  Serial.println("✓ Support initialized");
 
   // Create node
-  rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
+  ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
+  if (ret != RCL_RET_OK) {
+      Serial.println("ERROR: Failed to init node!");
+      while(1) { delay(100); }
+  }
+  Serial.println("✓ Node created");
 
   // Create subscriptions
-  rclc_subscription_init_default(
+  ret = rclc_subscription_init_default(
       &forward_subscriber,
       &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
       "/forward/pneumatic");
+  if (ret != RCL_RET_OK) {
+      Serial.println("ERROR: Failed to create forward subscription!");
+  } else {
+      Serial.println("✓ Forward subscription created");
+  }
 
-  rclc_subscription_init_default(
+  ret = rclc_subscription_init_default(
       &backward_subscriber,
       &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
       "/backward/pneumatic");
+  if (ret != RCL_RET_OK) {
+      Serial.println("ERROR: Failed to create backward subscription!");
+  } else {
+      Serial.println("✓ Backward subscription created");
+  }
 
   // Create executor
-  rclc_executor_init(&executor, &support.context, 2, &allocator);
+  ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
+  if (ret != RCL_RET_OK) {
+      Serial.println("ERROR: Failed to init executor!");
+  } else {
+      Serial.println("✓ Executor initialized");
+  };
   rclc_executor_add_subscription(&executor, &forward_subscriber, &forward_msg,
                                   &forward_pneumatic_callback, ON_NEW_DATA);
   rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
                                   &backward_pneumatic_callback, ON_NEW_DATA);
+  
+  Serial.println("✓✓✓ ESP32 Pneumatic Node Ready! ✓✓✓");
 }
 
 // Callback function for /forward/pneumatic topic
