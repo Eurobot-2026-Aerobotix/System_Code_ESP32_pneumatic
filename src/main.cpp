@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <micro_ros_platformio.h>
+#include <micro_ros_arduino.h>
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
@@ -29,7 +29,7 @@ void setup() {
   // Initialize serial communication
   Serial.begin(115200);
   Serial.println("Starting ESP32 Pneumatic Node...");
-  set_microros_serial_transports(Serial);
+  set_microros_transports();
   digitalWrite(2, HIGH); // Turn on built-in LED to indicate startup
   // Initialize GPIO pins
   for (int pin : front_suction_cup_pins) {
@@ -83,7 +83,7 @@ void setup() {
       &forward_subscriber,
       &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "/forward/pneumatic");
+      "/front/pneumatic");
   if (ret != RCL_RET_OK) {
       Serial.println("ERROR: Failed to create forward subscription!");
   } else {
