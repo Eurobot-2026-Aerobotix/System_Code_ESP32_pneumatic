@@ -5,12 +5,6 @@
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
 
-// Pin definitions
-int front_suction_cup_pins[] = {22, 33, 21, 5};
-int back_suction_cup_pins[] = {13, 16, 17, 12};
-int front_pump_pin = 18;
-int back_pump_pin = 19;
-
 // micro-ROS variables
 rcl_subscription_t forward_subscriber;
 rcl_subscription_t backward_subscriber;
@@ -190,7 +184,8 @@ void loop() {
   // Spin executor to process incoming messages
   rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
   delay(10);
-    if (Serial.available()) {
+  /*
+  if (Serial.available()) {
     String s = Serial.readStringUntil('\n');
     s.trim();
     if (s.length() > 0) {
@@ -238,5 +233,5 @@ void loop() {
       }
     }
   }
-  delay(10);
+  */
 }
