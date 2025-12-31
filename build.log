@@ -1,0 +1,56 @@
+Processing upesy_wroom (platform: espressif32; board: upesy_wroom; framework: arduino; lib_deps: https://github.com/micro-ROS/micro_ros_platformio; board_microros_distro: humble; board_microros_transport: serial; build_flags: -DMICRO_ROS_TRANSPORT_ARDUINO_SERIAL, -L ./.pio/libdeps/upesy_wroom/micro_ros_platformio/; monitor_speed: 115200; upload_speed: 115200)
+--------------------------------------------------------------------------------
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/upesy_wroom.html
+PLATFORM: Espressif 32 (6.12.0) > uPesy ESP32 Wroom DevKit
+HARDWARE: ESP32 240MHz, 320KB RAM, 4MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20017.241212+sha.dcc1105b 
+ - tool-esptoolpy @ 2.40900.250804 (4.9.0) 
+ - toolchain-xtensa-esp32 @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Installing importlib-resources with pip at PlatformIO environment
+/home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install importlib-resources
+Requirement already satisfied: importlib-resources in /home/ubuntu/.local/share/pipx/venvs/platformio/lib/python3.12/site-packages (6.5.2)
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: /home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install --upgrade pip
+Installing pyyaml with pip at PlatformIO environment
+/home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install pyyaml
+Requirement already satisfied: pyyaml in /home/ubuntu/.local/share/pipx/venvs/platformio/lib/python3.12/site-packages (6.0.2)
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: /home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install --upgrade pip
+Installing markupsafe==2.0.1 with pip at PlatformIO environment
+/home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install markupsafe==2.0.1
+Requirement already satisfied: markupsafe==2.0.1 in /home/ubuntu/.local/share/pipx/venvs/platformio/lib/python3.12/site-packages (2.0.1)
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: /home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install --upgrade pip
+Installing empy==3.3.4 with pip at PlatformIO environment
+/home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install empy==3.3.4
+Requirement already satisfied: empy==3.3.4 in /home/ubuntu/.local/share/pipx/venvs/platformio/lib/python3.12/site-packages (3.3.4)
+
+[notice] A new release of pip is available: 25.2 -> 25.3
+[notice] To update, run: /home/ubuntu/.local/share/pipx/venvs/platformio/bin/python -m pip install --upgrade pip
+Configuring upesy_wroom with transport serial
+Downloading micro-ROS dev dependencies
+ament_cmake pull failed: 
+From https://github.com/ament/ament_cmake
+ * branch            humble     -> FETCH_HEAD
+hint: You have divergent branches and need to specify how to reconcile them.
+hint: You can do so by running one of the following commands sometime before
+hint: your next pull:
+hint: 
+hint:   git config pull.rebase false  # merge
+hint:   git config pull.rebase true   # rebase
+hint:   git config pull.ff only       # fast-forward only
+hint: 
+hint: You can replace "git config" with "git config --global" to set a default
+hint: preference for all repositories. You can also pass --rebase, --no-rebase,
+hint: or --ff-only on the command line to override the configured default per
+hint: invocation.
+fatal: Need to specify how to reconcile divergent branches.
+
+========================== [FAILED] Took 3.52 seconds ==========================
