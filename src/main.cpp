@@ -19,58 +19,43 @@ std_msgs__msg__Int32 backward_msg;
 void forward_pneumatic_callback(const void *msgin);
 void backward_pneumatic_callback(const void *msgin);
 
-int front_suction_cup_pins[] = {16, 17, 12, 13};
-int back_suction_cup_pins[] = {5, 21, 22, 33};
+int front_electrovalve_pins[] = {16, 17, 12, 13};
+int back_electrovalve_pins[] = {5, 21, 22, 33};
 int front_pump_pin = 19;
 int back_pump_pin = 18;
 
-// Callback function for /forward/pneumatic topic
-void forward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  int value = msg->data;
-  
-  Serial.println("Forward pneumatic command received: " + String(value));
-}
-
-// Callback function for /backward/pneumatic topic
-void backward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  int value = msg->data;
-  Serial.println("Backward pneumatic command received: " + String(value));
-}
-
-void activateSuctionCup(int front_0_back_1, int cup_index) {
+void activateElectrovalve(int front_0_back_1, int cup_index) {
   if (front_0_back_1 == 0) {
-    digitalWrite(front_suction_cup_pins[cup_index], HIGH);
+    digitalWrite(front_electrovalve_pins[cup_index], HIGH);
   } else {
-    digitalWrite(back_suction_cup_pins[cup_index], HIGH);
+    digitalWrite(back_electrovalve_pins[cup_index], HIGH);
   }
 }
-void activateAllSuctionCups(int front_0_back_1) {
+void activateAllElectrovalves(int front_0_back_1) {
   if (front_0_back_1 == 0) {
-    for (int pin : front_suction_cup_pins) {
+    for (int pin : front_electrovalve_pins) {
       digitalWrite(pin, HIGH);
     }
   } else {
-    for (int pin : back_suction_cup_pins) {
+    for (int pin : back_electrovalve_pins) {
       digitalWrite(pin, HIGH);
     }
   }
 }
-void deactivateSuctionCup(int front_0_back_1, int cup_index) {
+void deactivateElectrovalve(int front_0_back_1, int cup_index) {
   if (front_0_back_1 == 0) {
-    digitalWrite(front_suction_cup_pins[cup_index], LOW);
+    digitalWrite(front_electrovalve_pins[cup_index], LOW);
   } else {
-    digitalWrite(back_suction_cup_pins[cup_index], LOW);
+    digitalWrite(back_electrovalve_pins[cup_index], LOW);
   }
 }
-void deactivateAllSuctionCups(int front_0_back_1) {
+void deactivateAllElectrovalves(int front_0_back_1) {
   if (front_0_back_1 == 0) {
-    for (int pin : front_suction_cup_pins) {
+    for (int pin : front_electrovalve_pins) {
       digitalWrite(pin, LOW);
     }
   } else {
-    for (int pin : back_suction_cup_pins) {
+    for (int pin : back_electrovalve_pins) {
       digitalWrite(pin, LOW);
     }
   }
@@ -90,6 +75,54 @@ void deactivatePump(int front_0_back_1) {
   }
 }
 
+// Callback function for /forward/pneumatic topic
+void forward_pneumatic_callback(const void *msgin) {
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int value = msg->data;
+  // 1 activates the electrovalve, ordered from MSB to LSB
+  int inactive_valves = 0;
+  for (int i = 0; i < 4; i++) {
+    int bit = ((value << i) & 0x08) >> 3;
+    if (bit == 1) {
+      activateElectrovalve(0, i);
+    } else {
+      inactive_valves++;
+      deactivateElectrovalve(0, i);
+    }
+    if (inactive_valves == 0){
+      deactivatePump(0);
+    }else{
+      activatePump(0);
+    }
+  }
+  
+  Serial.println("Forward pneumatic command received: " + String(value));
+}
+
+// Callback function for /backward/pneumatic topic
+void backward_pneumatic_callback(const void *msgin) {
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int value = msg->data;
+  // 1 activates the electrovalve, ordered from MSB to LSB
+  int inactive_valves = 0;
+  for (int i = 0; i < 4; i++) {
+    int bit = ((value << i) & 0x08) >> 3;
+    if (bit == 1) {
+      activateElectrovalve(1, i);
+    } else {
+      inactive_valves++;
+      deactivateElectrovalve(1, i);
+    }
+    if (inactive_valves == 0){
+      deactivatePump(1);
+    }else{
+      activatePump(1);
+    }
+  }
+
+  Serial.println("Backward pneumatic command received: " + String(value));
+}
+
 void test_with_serial(){
   if (Serial.available()) {
     String s = Serial.readStringUntil('\n');
@@ -101,21 +134,21 @@ void test_with_serial(){
 
       if (n >= 0 && n <= 3) {
         Serial.println("Activating front suction cup");
-        activateSuctionCup(0, n);
+        activateElectrovalve(0, n);
         delay(500);
-        deactivateSuctionCup(0, n);
+        deactivateElectrovalve(0, n);
       } else if (n >= 4 && n <= 7) {
         int idx = n - 4;
         Serial.println("Activating back suction cup");
-        activateSuctionCup(1, idx);
+        activateElectrovalve(1, idx);
         delay(500);
-        deactivateSuctionCup(1, idx);
+        deactivateElectrovalve(1, idx);
       } else if (n == 20) {
         Serial.println("Activating all front suction cups");
-        activateAllSuctionCups(0);
+        activateAllElectrovalves(0);
       } else if (n == 21) {
         Serial.println("Activating all back suction cups");
-        activateAllSuctionCups(1);
+        activateAllElectrovalves(1);
       } else if (n == 30) {
         Serial.println("Activating front pump");
         activatePump(0);
@@ -130,10 +163,10 @@ void test_with_serial(){
         deactivatePump(1);
       } else if (n == 40) {
         Serial.println("Deactivating all front suction cups");
-        deactivateAllSuctionCups(0);
+        deactivateAllElectrovalves(0);
       } else if (n == 41) {
         Serial.println("Deactivating all back suction cups");
-        deactivateAllSuctionCups(1);
+        deactivateAllElectrovalves(1);
       } else {
         Serial.println("Unknown command");
       }
@@ -147,11 +180,11 @@ void setup() {
   set_microros_transports();
   digitalWrite(2, HIGH); // Turn on built-in LED to indicate startup
   // Initialize GPIO pins
-  for (int pin : front_suction_cup_pins) {
+  for (int pin : front_electrovalve_pins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
-  for (int pin : back_suction_cup_pins) {
+  for (int pin : back_electrovalve_pins) {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
   }
