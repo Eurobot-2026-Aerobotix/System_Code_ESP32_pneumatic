@@ -24,6 +24,122 @@ int back_suction_cup_pins[] = {5, 21, 22, 33};
 int front_pump_pin = 19;
 int back_pump_pin = 18;
 
+// Callback function for /forward/pneumatic topic
+void forward_pneumatic_callback(const void *msgin) {
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int value = msg->data;
+  
+  Serial.println("Forward pneumatic command received: " + String(value));
+}
+
+// Callback function for /backward/pneumatic topic
+void backward_pneumatic_callback(const void *msgin) {
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int value = msg->data;
+  Serial.println("Backward pneumatic command received: " + String(value));
+}
+
+void activateSuctionCup(int front_0_back_1, int cup_index) {
+  if (front_0_back_1 == 0) {
+    digitalWrite(front_suction_cup_pins[cup_index], HIGH);
+  } else {
+    digitalWrite(back_suction_cup_pins[cup_index], HIGH);
+  }
+}
+void activateAllSuctionCups(int front_0_back_1) {
+  if (front_0_back_1 == 0) {
+    for (int pin : front_suction_cup_pins) {
+      digitalWrite(pin, HIGH);
+    }
+  } else {
+    for (int pin : back_suction_cup_pins) {
+      digitalWrite(pin, HIGH);
+    }
+  }
+}
+void deactivateSuctionCup(int front_0_back_1, int cup_index) {
+  if (front_0_back_1 == 0) {
+    digitalWrite(front_suction_cup_pins[cup_index], LOW);
+  } else {
+    digitalWrite(back_suction_cup_pins[cup_index], LOW);
+  }
+}
+void deactivateAllSuctionCups(int front_0_back_1) {
+  if (front_0_back_1 == 0) {
+    for (int pin : front_suction_cup_pins) {
+      digitalWrite(pin, LOW);
+    }
+  } else {
+    for (int pin : back_suction_cup_pins) {
+      digitalWrite(pin, LOW);
+    }
+  }
+}
+void activatePump(int front_0_back_1) {
+  if (front_0_back_1 == 0) {
+    digitalWrite(front_pump_pin, HIGH);
+  } else {
+    digitalWrite(back_pump_pin, HIGH);
+  }
+}
+void deactivatePump(int front_0_back_1) {
+  if (front_0_back_1 == 0) {
+    digitalWrite(front_pump_pin, LOW);
+  } else {
+    digitalWrite(back_pump_pin, LOW);
+  }
+}
+
+void test_with_serial(){
+  if (Serial.available()) {
+    String s = Serial.readStringUntil('\n');
+    s.trim();
+    if (s.length() > 0) {
+      int n = s.toInt();
+      Serial.print("Received: ");
+      Serial.println(n);
+
+      if (n >= 0 && n <= 3) {
+        Serial.println("Activating front suction cup");
+        activateSuctionCup(0, n);
+        delay(500);
+        deactivateSuctionCup(0, n);
+      } else if (n >= 4 && n <= 7) {
+        int idx = n - 4;
+        Serial.println("Activating back suction cup");
+        activateSuctionCup(1, idx);
+        delay(500);
+        deactivateSuctionCup(1, idx);
+      } else if (n == 20) {
+        Serial.println("Activating all front suction cups");
+        activateAllSuctionCups(0);
+      } else if (n == 21) {
+        Serial.println("Activating all back suction cups");
+        activateAllSuctionCups(1);
+      } else if (n == 30) {
+        Serial.println("Activating front pump");
+        activatePump(0);
+      } else if (n == 31) {
+        Serial.println("Activating back pump");
+        activatePump(1);
+      } else if (n == 50) {
+        Serial.println("Deactivating front pump");
+        deactivatePump(0);
+      } else if (n == 51) {
+        Serial.println("Deactivating back pump");
+        deactivatePump(1);
+      } else if (n == 40) {
+        Serial.println("Deactivating all front suction cups");
+        deactivateAllSuctionCups(0);
+      } else if (n == 41) {
+        Serial.println("Deactivating all back suction cups");
+        deactivateAllSuctionCups(1);
+      } else {
+        Serial.println("Unknown command");
+      }
+    }
+  }
+}
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
@@ -115,123 +231,8 @@ void setup() {
   Serial.println("✓✓✓ ESP32 Pneumatic Node Ready! ✓✓✓");
 }
 
-// Callback function for /forward/pneumatic topic
-void forward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  int value = msg->data;
-  
-  Serial.println("Forward pneumatic command received: " + String(value));
-}
-
-// Callback function for /backward/pneumatic topic
-void backward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
-  int value = msg->data;
-  Serial.println("Backward pneumatic command received: " + String(value));
-}
-
-void activateSuctionCup(int front_0_back_1, int cup_index) {
-  if (front_0_back_1 == 0) {
-    digitalWrite(front_suction_cup_pins[cup_index], HIGH);
-  } else {
-    digitalWrite(back_suction_cup_pins[cup_index], HIGH);
-  }
-}
-void activateAllSuctionCups(int front_0_back_1) {
-  if (front_0_back_1 == 0) {
-    for (int pin : front_suction_cup_pins) {
-      digitalWrite(pin, HIGH);
-    }
-  } else {
-    for (int pin : back_suction_cup_pins) {
-      digitalWrite(pin, HIGH);
-    }
-  }
-}
-void deactivateSuctionCup(int front_0_back_1, int cup_index) {
-  if (front_0_back_1 == 0) {
-    digitalWrite(front_suction_cup_pins[cup_index], LOW);
-  } else {
-    digitalWrite(back_suction_cup_pins[cup_index], LOW);
-  }
-}
-void deactivateAllSuctionCups(int front_0_back_1) {
-  if (front_0_back_1 == 0) {
-    for (int pin : front_suction_cup_pins) {
-      digitalWrite(pin, LOW);
-    }
-  } else {
-    for (int pin : back_suction_cup_pins) {
-      digitalWrite(pin, LOW);
-    }
-  }
-}
-void activatePump(int front_0_back_1) {
-  if (front_0_back_1 == 0) {
-    digitalWrite(front_pump_pin, HIGH);
-  } else {
-    digitalWrite(back_pump_pin, HIGH);
-  }
-}
-void deactivatePump(int front_0_back_1) {
-  if (front_0_back_1 == 0) {
-    digitalWrite(front_pump_pin, LOW);
-  } else {
-    digitalWrite(back_pump_pin, LOW);
-  }
-}
 void loop() {
   // Spin executor to process incoming messages
   rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
   delay(10);
-  /*
-  if (Serial.available()) {
-    String s = Serial.readStringUntil('\n');
-    s.trim();
-    if (s.length() > 0) {
-      int n = s.toInt();
-      Serial.print("Received: ");
-      Serial.println(n);
-
-      if (n >= 0 && n <= 3) {
-        Serial.println("Activating front suction cup");
-        activateSuctionCup(0, n);
-        delay(500);
-        deactivateSuctionCup(0, n);
-      } else if (n >= 4 && n <= 7) {
-        int idx = n - 4;
-        Serial.println("Activating back suction cup");
-        activateSuctionCup(1, idx);
-        delay(500);
-        deactivateSuctionCup(1, idx);
-      } else if (n == 20) {
-        Serial.println("Activating all front suction cups");
-        activateAllSuctionCups(0);
-      } else if (n == 21) {
-        Serial.println("Activating all back suction cups");
-        activateAllSuctionCups(1);
-      } else if (n == 30) {
-        Serial.println("Activating front pump");
-        activatePump(0);
-      } else if (n == 31) {
-        Serial.println("Activating back pump");
-        activatePump(1);
-      } else if (n == 50) {
-        Serial.println("Deactivating front pump");
-        deactivatePump(0);
-      } else if (n == 51) {
-        Serial.println("Deactivating back pump");
-        deactivatePump(1);
-      } else if (n == 40) {
-        Serial.println("Deactivating all front suction cups");
-        deactivateAllSuctionCups(0);
-      } else if (n == 41) {
-        Serial.println("Deactivating all back suction cups");
-        deactivateAllSuctionCups(1);
-      } else {
-        Serial.println("Unknown command");
-      }
-    }
-  }
-  */
 }
