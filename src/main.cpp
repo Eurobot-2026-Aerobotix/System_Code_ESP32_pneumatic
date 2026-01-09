@@ -15,6 +15,9 @@ rcl_node_t node;
 std_msgs__msg__Int32 forward_msg;
 std_msgs__msg__Int32 backward_msg;
 
+// Connection state
+bool agent_connected = false;
+
 // Function declarations
 void forward_pneumatic_callback(const void *msgin);
 void backward_pneumatic_callback(const void *msgin);
@@ -173,12 +176,77 @@ void test_with_serial(){
     }
   }
 }
+
+bool setup_uros() {
+  Serial.println("Attempting to connect to micro-ROS agent...");
+  
+  allocator = rcl_get_default_allocator();
+  rcl_ret_t ret = rclc_support_init(&support, 0, NULL, &allocator);
+  
+  if (ret != RCL_RET_OK) {
+    Serial.println("Failed to connect to micro-ROS agent, retrying in 2 seconds...");
+    delay(2000);
+    return false;
+  }
+  Serial.println("✓ Support initialized");
+  
+  ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
+  if (ret != RCL_RET_OK) {
+    Serial.println("ERROR: Failed to init node, retrying...");
+    delay(2000);
+    return false;
+  }
+  Serial.println("✓ Node created");
+
+  // Create subscriptions
+  ret = rclc_subscription_init_default(
+      &forward_subscriber,
+      &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+      "/front/pneumatic");
+  if (ret != RCL_RET_OK) {
+    Serial.println("ERROR: Failed to create forward subscription!");
+  } else {
+    Serial.println("✓ Forward subscription created");
+  }
+
+  ret = rclc_subscription_init_default(
+      &backward_subscriber,
+      &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+      "/back/pneumatic");
+  if (ret != RCL_RET_OK) {
+    Serial.println("ERROR: Failed to create backward subscription!");
+  } else {
+    Serial.println("✓ Backward subscription created");
+  }
+
+  // Create executor
+  ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
+  if (ret != RCL_RET_OK) {
+    Serial.println("ERROR: Failed to init executor!");
+    delay(2000);
+    return false;
+  } else {
+    Serial.println("✓ Executor initialized");
+  }
+  
+  rclc_executor_add_subscription(&executor, &forward_subscriber, &forward_msg,
+                                  &forward_pneumatic_callback, ON_NEW_DATA);
+  rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
+                                  &backward_pneumatic_callback, ON_NEW_DATA);
+  
+  Serial.println("✓✓✓ ESP32 Pneumatic Node Ready! ✓✓✓");
+  return true;
+}
+
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
   Serial.println("Starting ESP32 Pneumatic Node...");
   set_microros_transports();
   digitalWrite(2, HIGH); // Turn on built-in LED to indicate startup
+  
   // Initialize GPIO pins
   for (int pin : front_electrovalve_pins) {
     pinMode(pin, OUTPUT);
@@ -193,79 +261,21 @@ void setup() {
   pinMode(back_pump_pin, OUTPUT);
   digitalWrite(back_pump_pin, LOW);
 
-  // Wait for micro-ROS agent
-  Serial.println("Waiting for micro-ROS agent...");
-  delay(3000);
-
-  // Initialize micro-ROS with error checking and retry
-  allocator = rcl_get_default_allocator();
-  
-  // Retry connection up to 10 times
-  rcl_ret_t ret;
-  int retry_count = 0;
-  do {
-      ret = rclc_support_init(&support, 0, NULL, &allocator);
-      if (ret != RCL_RET_OK) {
-          Serial.println("Failed to connect to micro-ROS agent, retrying...");
-          delay(1000);
-          retry_count++;
-      }
-  } while (ret != RCL_RET_OK && retry_count < 10);
-  
-  if (ret != RCL_RET_OK) {
-      Serial.println("ERROR: Failed to initialize micro-ROS!");
-      while(1) { delay(100); }
-  }
-  Serial.println("✓ Support initialized");
-
-  // Create node
-  ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
-  if (ret != RCL_RET_OK) {
-      Serial.println("ERROR: Failed to init node!");
-      while(1) { delay(100); }
-  }
-  Serial.println("✓ Node created");
-
-  // Create subscriptions
-  ret = rclc_subscription_init_default(
-      &forward_subscriber,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "/front/pneumatic");
-  if (ret != RCL_RET_OK) {
-      Serial.println("ERROR: Failed to create forward subscription!");
-  } else {
-      Serial.println("✓ Forward subscription created");
-  }
-
-  ret = rclc_subscription_init_default(
-      &backward_subscriber,
-      &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "/backward/pneumatic");
-  if (ret != RCL_RET_OK) {
-      Serial.println("ERROR: Failed to create backward subscription!");
-  } else {
-      Serial.println("✓ Backward subscription created");
-  }
-
-  // Create executor
-  ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
-  if (ret != RCL_RET_OK) {
-      Serial.println("ERROR: Failed to init executor!");
-  } else {
-      Serial.println("✓ Executor initialized");
-  };
-  rclc_executor_add_subscription(&executor, &forward_subscriber, &forward_msg,
-                                  &forward_pneumatic_callback, ON_NEW_DATA);
-  rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
-                                  &backward_pneumatic_callback, ON_NEW_DATA);
-  
-  Serial.println("✓✓✓ ESP32 Pneumatic Node Ready! ✓✓✓");
+  Serial.println("✓ GPIO initialized");
+  Serial.println("Connection to micro-ROS agent will be handled in loop...");
 }
 
 void loop() {
-  // Spin executor to process incoming messages
-  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+  // If not connected, try to connect to the agent
+  if (!agent_connected) {
+    agent_connected = setup_uros();
+    return;
+  }
+  
+  // If connected, spin the executor
+  if (agent_connected) {
+    rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+  }
+  
   delay(10);
 }
