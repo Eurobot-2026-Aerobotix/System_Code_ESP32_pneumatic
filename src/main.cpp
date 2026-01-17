@@ -4,6 +4,17 @@
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
 #include <std_msgs/msg/int32.h>
+#include <rmw_microros/rmw_microros.h>
+
+// Agent status enum
+typedef enum {
+    AGENT_WAIT = 0,
+    AGENT_AVAILABLE,
+    AGENT_CONNECTED,
+    AGENT_DISCONNECTED
+} AgentStatus;
+
+AgentStatus agent_status = AGENT_WAIT;
 
 // micro-ROS variables
 rcl_subscription_t forward_subscriber;
@@ -14,9 +25,6 @@ rcl_allocator_t allocator;
 rcl_node_t node;
 std_msgs__msg__Int32 forward_msg;
 std_msgs__msg__Int32 backward_msg;
-
-// Connection state
-bool agent_connected = false;
 
 // Function declarations
 void forward_pneumatic_callback(const void *msgin);
@@ -177,6 +185,101 @@ void test_with_serial(){
   }
 }
 
+// ============================================================================
+// Agent Connection Management Functions
+// ============================================================================
+bool pingAgent() {
+    // Ping the agent to check if it's still alive
+    rcl_ret_t ping_result = rmw_uros_ping_agent(100, 1); // 100ms timeout, 1 attempt
+    return ping_result == RCL_RET_OK;
+}
+
+void cleanupMicroROS() {
+    Serial.println("Cleaning up micro-ROS resources...");
+    
+    // Clean up executor
+    rclc_executor_fini(&executor);
+    
+    // Clean up subscriptions
+    rcl_subscription_fini(&forward_subscriber, &node);
+    rcl_subscription_fini(&backward_subscriber, &node);
+    
+    // Clean up node
+    rcl_node_fini(&node);
+    
+    // Clean up support
+    rclc_support_fini(&support);
+    
+    Serial.println("Cleanup complete");
+}
+
+bool initializeMicroROS() {
+    Serial.println("Initializing micro-ROS...");
+    
+    allocator = rcl_get_default_allocator();
+    
+    // Initialize support
+    rcl_ret_t ret = rclc_support_init(&support, 0, NULL, &allocator);
+    if (ret != RCL_RET_OK) {
+        Serial.println("Failed to initialize support");
+        return false;
+    }
+    
+    // Initialize node
+    ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
+    if (ret != RCL_RET_OK) {
+        Serial.println("Failed to initialize node");
+        rclc_support_fini(&support);
+        return false;
+    }
+    
+    // Create subscriptions
+    ret = rclc_subscription_init_default(
+        &forward_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+        "/front/pneumatic");
+    if (ret != RCL_RET_OK) {
+        Serial.println("Failed to create forward subscription");
+        rcl_node_fini(&node);
+        rclc_support_fini(&support);
+        return false;
+    }
+    
+    ret = rclc_subscription_init_default(
+        &backward_subscriber,
+        &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+        "/back/pneumatic");
+    if (ret != RCL_RET_OK) {
+        Serial.println("Failed to create backward subscription");
+        rcl_subscription_fini(&forward_subscriber, &node);
+        rcl_node_fini(&node);
+        rclc_support_fini(&support);
+        return false;
+    }
+    
+    // Create executor
+    ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
+    if (ret != RCL_RET_OK) {
+        Serial.println("Failed to initialize executor");
+        rcl_subscription_fini(&forward_subscriber, &node);
+        rcl_subscription_fini(&backward_subscriber, &node);
+        rcl_node_fini(&node);
+        rclc_support_fini(&support);
+        return false;
+    }
+    
+    // Add subscriptions to executor
+    rclc_executor_add_subscription(&executor, &forward_subscriber, &forward_msg,
+                                    &forward_pneumatic_callback, ON_NEW_DATA);
+    rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
+                                    &backward_pneumatic_callback, ON_NEW_DATA);
+    
+    Serial.println("✓✓✓ micro-ROS initialized successfully! ✓✓✓");
+    return true;
+}
+
 bool setup_uros() {
   Serial.println("Attempting to connect to micro-ROS agent...");
   
@@ -266,16 +369,56 @@ void setup() {
 }
 
 void loop() {
-  // If not connected, try to connect to the agent
-  if (!agent_connected) {
-    agent_connected = setup_uros();
-    return;
-  }
-  
-  // If connected, spin the executor
-  if (agent_connected) {
-    rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-  }
-  
-  delay(10);
+    static unsigned long last_ping_time = 0;
+    const unsigned long PING_INTERVAL = 500; // Ping every 0.5 second
+    const unsigned long RECONNECT_DELAY = 500; // Wait 0.5 second before reconnect
+    
+    switch (agent_status) {
+        case AGENT_WAIT:
+        case AGENT_DISCONNECTED:
+            Serial.println("[STATUS] Waiting for agent...");
+            agent_status = AGENT_WAIT;
+            
+            // Check if agent is available
+            if (pingAgent()) {
+                Serial.println("[STATUS] Agent detected! Attempting connection...");
+                agent_status = AGENT_AVAILABLE;
+            } else {
+                delay(RECONNECT_DELAY);
+            }
+            break;
+            
+        case AGENT_AVAILABLE:
+            // Try to initialize micro-ROS
+            if (initializeMicroROS()) {
+                agent_status = AGENT_CONNECTED;
+                last_ping_time = millis();
+                Serial.println("[STATUS] Successfully connected to agent");
+            } else {
+                Serial.println("[STATUS] Connection failed, retrying...");
+                agent_status = AGENT_WAIT;
+                delay(RECONNECT_DELAY);
+            }
+            break;
+            
+        case AGENT_CONNECTED:
+            // Spin executor to process messages
+            rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+            
+            // Periodic ping to check agent health
+            if (millis() - last_ping_time > PING_INTERVAL) {
+                if (!pingAgent()) {
+                    Serial.println("[STATUS] Agent ping failed! Connection lost.");
+                    cleanupMicroROS();
+                    agent_status = AGENT_DISCONNECTED;
+                } else {
+                    // Uncomment for verbose ping status
+                    // Serial.println("[STATUS] Agent ping OK");
+                }
+                last_ping_time = millis();
+            }
+            
+            delay(10);
+            break;
+    }
 }
