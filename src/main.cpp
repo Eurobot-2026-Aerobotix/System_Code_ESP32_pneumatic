@@ -403,7 +403,7 @@ void loop() {
             
         case AGENT_CONNECTED:
             // Spin executor to process messages
-            rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+            rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10));
             
             // Periodic ping to check agent health
             if (millis() - last_ping_time > PING_INTERVAL) {
