@@ -301,23 +301,31 @@ bool setup_uros() {
   }
   Serial.println("✓ Node created");
 
-  // Create subscriptions
-  ret = rclc_subscription_init_default(
+  // Create QoS profile with reliable settings
+  rcl_subscription_options_t sub_opts = rcl_subscription_get_default_options();
+  sub_opts.qos.reliability = RMW_QOS_POLICY_RELIABILITY_RELIABLE;
+  sub_opts.qos.history = RMW_QOS_POLICY_HISTORY_KEEP_LAST;
+  sub_opts.qos.depth = 1;
+
+  // Create subscriptions with reliable QoS
+  ret = rclc_subscription_init(
       &forward_subscriber,
       &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "/front/pneumatic");
+      "/front/pneumatic",
+      &sub_opts.qos);
   if (ret != RCL_RET_OK) {
     Serial.println("ERROR: Failed to create forward subscription!");
   } else {
     Serial.println("✓ Forward subscription created");
   }
 
-  ret = rclc_subscription_init_default(
+  ret = rclc_subscription_init(
       &backward_subscriber,
       &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-      "/back/pneumatic");
+      "/back/pneumatic",
+      &sub_opts.qos);
   if (ret != RCL_RET_OK) {
     Serial.println("ERROR: Failed to create backward subscription!");
   } else {
