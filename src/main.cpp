@@ -90,6 +90,13 @@ void deactivatePump(int front_0_back_1) {
 void forward_pneumatic_callback(const void *msgin) {
   const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
   int value = msg->data;
+
+  if (value >= 16){
+    deactivateAllElectrovalves(0);
+    deactivatePump(0);
+    return;
+  }
+
   // 1 activates the electrovalve, ordered from MSB to LSB
   int inactive_valves = 0;
   for (int i = 0; i < 4; i++) {
@@ -114,6 +121,13 @@ void forward_pneumatic_callback(const void *msgin) {
 void backward_pneumatic_callback(const void *msgin) {
   const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
   int value = msg->data;
+
+  if (value >= 16){
+    deactivateAllElectrovalves(1);
+    deactivatePump(1);
+    return;
+  }
+
   // 1 activates the electrovalve, ordered from MSB to LSB
   int inactive_valves = 0;
   for (int i = 0; i < 4; i++) {
@@ -411,7 +425,7 @@ void loop() {
             
         case AGENT_CONNECTED:
             // Spin executor to process messages
-            rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(10));
+            rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(20));
             
             // Periodic ping to check agent health
             if (millis() - last_ping_time > PING_INTERVAL) {
@@ -426,7 +440,7 @@ void loop() {
                 last_ping_time = millis();
             }
             
-            delay(10);
+            delay(20);
             break;
     }
 }
