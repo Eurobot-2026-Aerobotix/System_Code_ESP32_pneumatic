@@ -90,7 +90,10 @@ void deactivatePump(int front_0_back_1) {
 void forward_pneumatic_callback(const void *msgin) {
   const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
   int value = msg->data;
-
+  if (value==20){
+    ESP.restart();
+    return;
+  }
   if (value >= 16){
     deactivateAllElectrovalves(0);
     deactivatePump(0);
@@ -121,7 +124,10 @@ void forward_pneumatic_callback(const void *msgin) {
 void backward_pneumatic_callback(const void *msgin) {
   const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
   int value = msg->data;
-
+   if (value==20){
+    ESP.restart();
+    return;
+  }
   if (value >= 16){
     deactivateAllElectrovalves(1);
     deactivatePump(1);
