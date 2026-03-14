@@ -19,12 +19,14 @@ AgentStatus agent_status = AGENT_WAIT;
 // micro-ROS variables
 rcl_subscription_t forward_subscriber;
 rcl_subscription_t backward_subscriber;
+rcl_publisher_t status_publisher;
 rclc_executor_t executor;
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
 std_msgs__msg__Int32 forward_msg;
 std_msgs__msg__Int32 backward_msg;
+std_msgs__msg__Int32 status_msg;
 
 // Function declarations
 void forward_pneumatic_callback(const void *msgin);
@@ -116,8 +118,6 @@ void forward_pneumatic_callback(const void *msgin) {
       activatePump(0);
     }
   }
-  
-  Serial.println("Forward pneumatic command received: " + String(value));
 }
 
 // Callback function for /backward/pneumatic topic
@@ -150,8 +150,6 @@ void backward_pneumatic_callback(const void *msgin) {
       activatePump(1);
     }
   }
-
-  Serial.println("Backward pneumatic command received: " + String(value));
 }
 
 void test_with_serial(){
@@ -215,10 +213,11 @@ bool pingAgent() {
 }
 
 void cleanupMicroROS() {
-    Serial.println("Cleaning up micro-ROS resources...");
-    
     // Clean up executor
     rclc_executor_fini(&executor);
+
+  // Clean up publisher
+  rcl_publisher_fini(&status_publisher, &node);
     
     // Clean up subscriptions
     rcl_subscription_fini(&forward_subscriber, &node);
@@ -229,26 +228,20 @@ void cleanupMicroROS() {
     
     // Clean up support
     rclc_support_fini(&support);
-    
-    Serial.println("Cleanup complete");
 }
 
 bool initializeMicroROS() {
-    Serial.println("Initializing micro-ROS...");
-    
     allocator = rcl_get_default_allocator();
     
     // Initialize support
     rcl_ret_t ret = rclc_support_init(&support, 0, NULL, &allocator);
     if (ret != RCL_RET_OK) {
-        Serial.println("Failed to initialize support");
         return false;
     }
     
     // Initialize node
     ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
     if (ret != RCL_RET_OK) {
-        Serial.println("Failed to initialize node");
         rclc_support_fini(&support);
         return false;
     }
@@ -260,7 +253,6 @@ bool initializeMicroROS() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
         "/front/pneumatic");
     if (ret != RCL_RET_OK) {
-        Serial.println("Failed to create forward subscription");
         rcl_node_fini(&node);
         rclc_support_fini(&support);
         return false;
@@ -272,17 +264,29 @@ bool initializeMicroROS() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
         "/back/pneumatic");
     if (ret != RCL_RET_OK) {
-        Serial.println("Failed to create backward subscription");
         rcl_subscription_fini(&forward_subscriber, &node);
         rcl_node_fini(&node);
         rclc_support_fini(&support);
         return false;
     }
+
+    // Create status publisher for dashboard heartbeat
+    ret = rclc_publisher_init_default(
+      &status_publisher,
+      &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
+      "/pneumatic/status");
+    if (ret != RCL_RET_OK) {
+      rcl_subscription_fini(&forward_subscriber, &node);
+      rcl_subscription_fini(&backward_subscriber, &node);
+      rcl_node_fini(&node);
+      rclc_support_fini(&support);
+      return false;
+    }
     
     // Create executor
     ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
     if (ret != RCL_RET_OK) {
-        Serial.println("Failed to initialize executor");
         rcl_subscription_fini(&forward_subscriber, &node);
         rcl_subscription_fini(&backward_subscriber, &node);
         rcl_node_fini(&node);
@@ -295,31 +299,24 @@ bool initializeMicroROS() {
                                     &forward_pneumatic_callback, ON_NEW_DATA);
     rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
                                     &backward_pneumatic_callback, ON_NEW_DATA);
-    
-    Serial.println("✓✓✓ micro-ROS initialized successfully! ✓✓✓");
+
     return true;
 }
 
 bool setup_uros() {
-  Serial.println("Attempting to connect to micro-ROS agent...");
-  
   allocator = rcl_get_default_allocator();
   rcl_ret_t ret = rclc_support_init(&support, 0, NULL, &allocator);
   
   if (ret != RCL_RET_OK) {
-    Serial.println("Failed to connect to micro-ROS agent, retrying in 2 seconds...");
     delay(2000);
     return false;
   }
-  Serial.println("✓ Support initialized");
   
   ret = rclc_node_init_default(&node, "esp32_pneumatic_node", "", &support);
   if (ret != RCL_RET_OK) {
-    Serial.println("ERROR: Failed to init node, retrying...");
     delay(2000);
     return false;
   }
-  Serial.println("✓ Node created");
 
   // Create QoS profile with reliable settings
   rcl_subscription_options_t sub_opts = rcl_subscription_get_default_options();
@@ -335,9 +332,6 @@ bool setup_uros() {
       "/front/pneumatic",
       &sub_opts.qos);
   if (ret != RCL_RET_OK) {
-    Serial.println("ERROR: Failed to create forward subscription!");
-  } else {
-    Serial.println("✓ Forward subscription created");
   }
 
   ret = rclc_subscription_init(
@@ -347,34 +341,26 @@ bool setup_uros() {
       "/back/pneumatic",
       &sub_opts.qos);
   if (ret != RCL_RET_OK) {
-    Serial.println("ERROR: Failed to create backward subscription!");
-  } else {
-    Serial.println("✓ Backward subscription created");
   }
 
   // Create executor
   ret = rclc_executor_init(&executor, &support.context, 2, &allocator);
   if (ret != RCL_RET_OK) {
-    Serial.println("ERROR: Failed to init executor!");
     delay(2000);
     return false;
-  } else {
-    Serial.println("✓ Executor initialized");
   }
   
   rclc_executor_add_subscription(&executor, &forward_subscriber, &forward_msg,
                                   &forward_pneumatic_callback, ON_NEW_DATA);
   rclc_executor_add_subscription(&executor, &backward_subscriber, &backward_msg,
                                   &backward_pneumatic_callback, ON_NEW_DATA);
-  
-  Serial.println("✓✓✓ ESP32 Pneumatic Node Ready! ✓✓✓");
+
   return true;
 }
 
 void setup() {
   // Initialize serial communication
   Serial.begin(115200);
-  Serial.println("Starting ESP32 Pneumatic Node...");
   set_microros_transports();
   digitalWrite(2, HIGH); // Turn on built-in LED to indicate startup
   
@@ -391,25 +377,22 @@ void setup() {
   digitalWrite(front_pump_pin, LOW);
   pinMode(back_pump_pin, OUTPUT);
   digitalWrite(back_pump_pin, LOW);
-
-  Serial.println("✓ GPIO initialized");
-  Serial.println("Connection to micro-ROS agent will be handled in loop...");
 }
 
 void loop() {
     static unsigned long last_ping_time = 0;
+  static unsigned long last_status_time = 0;
     const unsigned long PING_INTERVAL = 500; // Ping every 0.5 second
+  const unsigned long STATUS_INTERVAL = 1000; // Publish status every 1 second
     const unsigned long RECONNECT_DELAY = 500; // Wait 0.5 second before reconnect
     
     switch (agent_status) {
         case AGENT_WAIT:
         case AGENT_DISCONNECTED:
-            Serial.println("[STATUS] Waiting for agent...");
             agent_status = AGENT_WAIT;
             
             // Check if agent is available
             if (pingAgent()) {
-                Serial.println("[STATUS] Agent detected! Attempting connection...");
                 agent_status = AGENT_AVAILABLE;
             } else {
                 delay(RECONNECT_DELAY);
@@ -421,9 +404,8 @@ void loop() {
             if (initializeMicroROS()) {
                 agent_status = AGENT_CONNECTED;
                 last_ping_time = millis();
-                Serial.println("[STATUS] Successfully connected to agent");
+            last_status_time = millis();
             } else {
-                Serial.println("[STATUS] Connection failed, retrying...");
                 agent_status = AGENT_WAIT;
                 delay(RECONNECT_DELAY);
             }
@@ -432,16 +414,19 @@ void loop() {
         case AGENT_CONNECTED:
             // Spin executor to process messages
             rcl_ret_t ret = rclc_executor_spin_some(&executor, RCL_MS_TO_NS(20));
+
+          // Publish status heartbeat for dashboard
+          if (millis() - last_status_time > STATUS_INTERVAL) {
+            status_msg.data = 1;
+            rcl_publish(&status_publisher, &status_msg, NULL);
+            last_status_time = millis();
+          }
             
             // Periodic ping to check agent health
             if (millis() - last_ping_time > PING_INTERVAL) {
                 if (!pingAgent()) {
-                    Serial.println("[STATUS] Agent ping failed! Connection lost.");
                     cleanupMicroROS();
                     agent_status = AGENT_DISCONNECTED;
-                } else {
-                    // Uncomment for verbose ping status
-                    // Serial.println("[STATUS] Agent ping OK");
                 }
                 last_ping_time = millis();
             }
