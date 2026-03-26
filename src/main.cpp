@@ -3,6 +3,7 @@
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+#include <std_msgs/msg/int32.h>
 #include <std_msgs/msg/int64.h>
 #include <rmw_microros/rmw_microros.h>
 
@@ -24,8 +25,8 @@ rclc_executor_t executor;
 rclc_support_t support;
 rcl_allocator_t allocator;
 rcl_node_t node;
-std_msgs__msg__Int64 forward_msg;
-std_msgs__msg__Int64 backward_msg;
+std_msgs__msg__Int32 forward_msg;
+std_msgs__msg__Int32 backward_msg;
 std_msgs__msg__Int64 status_msg;
 
 // Function declarations
@@ -90,8 +91,8 @@ void deactivatePump(int front_0_back_1) {
 
 // Callback function for /forward/pneumatic topic
 void forward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int64 *msg = (const std_msgs__msg__Int64 *)msgin;
-  int64_t value = msg->data;
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int32_t value = msg->data;
   if (value==20){
     ESP.restart();
     return;
@@ -122,8 +123,8 @@ void forward_pneumatic_callback(const void *msgin) {
 
 // Callback function for /backward/pneumatic topic
 void backward_pneumatic_callback(const void *msgin) {
-  const std_msgs__msg__Int64 *msg = (const std_msgs__msg__Int64 *)msgin;
-  int64_t value = msg->data;
+  const std_msgs__msg__Int32 *msg = (const std_msgs__msg__Int32 *)msgin;
+  int32_t value = msg->data;
    if (value==20){
     ESP.restart();
     return;
@@ -250,7 +251,7 @@ bool initializeMicroROS() {
     ret = rclc_subscription_init_default(
         &forward_subscriber,
         &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64),
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
         "/front/pneumatic");
     if (ret != RCL_RET_OK) {
         rcl_node_fini(&node);
@@ -261,7 +262,7 @@ bool initializeMicroROS() {
     ret = rclc_subscription_init_default(
         &backward_subscriber,
         &node,
-        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64),
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
         "/back/pneumatic");
     if (ret != RCL_RET_OK) {
         rcl_subscription_fini(&forward_subscriber, &node);
@@ -328,7 +329,7 @@ bool setup_uros() {
   ret = rclc_subscription_init(
       &forward_subscriber,
       &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64),
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
       "/front/pneumatic",
       &sub_opts.qos);
   if (ret != RCL_RET_OK) {
@@ -337,7 +338,7 @@ bool setup_uros() {
   ret = rclc_subscription_init(
       &backward_subscriber,
       &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int64),
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
       "/back/pneumatic",
       &sub_opts.qos);
   if (ret != RCL_RET_OK) {
